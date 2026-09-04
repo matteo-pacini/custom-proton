@@ -26,7 +26,7 @@ on:
           - x86-64-v3
           - nocona
       patch_001:
-        description: 'Apply patch 001'
+        description: 'Apply the CPUID, KUSER_SHARED_DATA, and faketime hardware patch'
         required: false
         type: boolean
         default: true
