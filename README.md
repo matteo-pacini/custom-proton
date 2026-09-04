@@ -58,13 +58,24 @@ packages the result as an artifact. The default `ref` tracks Valve's
 
 The Experimental workflow has the same `march` choices as the CachyOS workflow. It
 prompts separately for the hardware patch and the OptiScaler patch set, both enabled by
-default. The OptiScaler option includes all eight dependent upscaler patches. Its
-`dry_run` input stops after checkout, patch validation, and configuration. Enable
-OptiScaler at runtime with:
+default. Its `dry_run` input stops after checkout, patch validation, and configuration.
+Enable OptiScaler at runtime with:
 
 ```sh
 PROTON_USE_OPTISCALER=1 %command%
 ```
+
+The OptiScaler option covers three layers, because upstream Valve ships none of them:
+the eight dependent upscaler patches against a pinned `umu-protonfixes` checkout, the
+`proton` wiring that registers `PROTON_USE_OPTISCALER` (plus the DLSS, XeSS and FSR
+version knobs) into the compat config, and a Wine `ntdll` loader redirect. That last
+one is not optional — protonfixes only unpacks the DLLs into the prefix and sets
+`WINE_OPTISCALER_NAME`; without a loader that honours the variable, nothing ever
+loads them.
+
+Note that FSR4 itself still will not engage on this build: the GPU spoofing lives in
+CachyOS's `win32u/d3dkmt.c` and its `amdxc64` looks up a newer entry point, neither of
+which is ported here. Use the CachyOS workflow for FSR4.
 
 ### How long it takes
 

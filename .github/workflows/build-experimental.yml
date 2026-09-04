@@ -126,12 +126,17 @@ jobs:
               git -C proton-experimental/protonfixes apply --verbose --whitespace=nowarn "../../$p"
             done
             git -C proton-experimental/protonfixes diff --check
+            # Valve's Wine has no loader redirect for OptiScaler, so without this
+            # protonfixes installs the DLLs into the prefix and nothing ever loads
+            # them. The two Wine patches touch disjoint files, so order is free.
+            git -C proton-experimental/wine apply --verbose --whitespace=nowarn \
+              ../../overlay/valve-experimental/wine/002-optiscaler-loader.patch
           fi
           if [ "$APPLY_HARDWARE" = "true" ]; then
             git -C proton-experimental/wine apply --verbose --whitespace=nowarn \
               ../../overlay/valve-experimental/wine/001-linuxuwu.patch
-            git -C proton-experimental/wine diff --check
           fi
+          git -C proton-experimental/wine diff --check
           git -C proton-experimental diff --check
 
       - name: Resolve build name and optimisation flags

@@ -1,5 +1,5 @@
 diff --git a/Makefile.in b/Makefile.in
-index 309623be..c5654d79 100644
+index 309623b..c5654d7 100644
 --- a/Makefile.in
 +++ b/Makefile.in
 @@ -1409,6 +1409,30 @@ $(DIST_AV1_PATENTS): $(AV1_PATENTS)
@@ -34,7 +34,7 @@ index 309623be..c5654d79 100644
  ## proton(.py), filelock.py, etc.
  ##
 diff --git a/proton b/proton
-index 076bbe32..65b453cb 100755
+index 076bbe3..65aabfc 100755
 --- a/proton
 +++ b/proton
 @@ -38,6 +38,8 @@ from ctypes import c_ssize_t
@@ -46,13 +46,17 @@ index 076bbe32..65b453cb 100755
  #To enable debug logging, copy "user_settings.sample.py" to "user_settings.py"
  #and edit it if needed.
  
-@@ -2150,6 +2152,13 @@ if __name__ == "__main__":
+@@ -2150,6 +2152,17 @@ if __name__ == "__main__":
  
      g_session.init_session(sys.argv[1] != "runinprefix")
  
 +    protonfixes.setup(g_session.env, "PATH", ld_path_var, prepend_to_env_str)
 +    protonfixes.setup_mount_drives(setup_dir_drive)
 +    protonfixes.winetricks(g_session.env, g_proton.wine_bin, g_proton.wineserver_bin)
++    g_session.check_environment("PROTON_FSR3_UPGRADE", "fsr3")
++    g_session.check_environment("PROTON_FSR4_UPGRADE", "fsr4")
++    g_session.check_environment("PROTON_DLSS_UPGRADE", "dlss")
++    g_session.check_environment("PROTON_XESS_UPGRADE", "xess")
 +    g_session.check_environment("PROTON_USE_OPTISCALER", "optiscaler")
 +    protonfixes.setup_upscalers(g_session.compat_config, g_session.env, g_compatdata.base_dir, g_compatdata.prefix_dir)
 +    protonfixes.execute()
