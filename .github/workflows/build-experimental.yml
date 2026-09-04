@@ -1,6 +1,6 @@
 name: Build Proton Experimental
 
-run-name: 'Build Proton Experimental: ${{ inputs.ref }} · ${{ inputs.march }}'
+run-name: "Build Proton Experimental: ${{ inputs.ref }} · ${{ inputs.march }} · ${{ inputs.hardware_patch && (inputs.optiscaler_patches && 'linuxuwu+optiscaler' || 'linuxuwu') || (inputs.optiscaler_patches && 'optiscaler' || 'stock') }}${{ inputs.dry_run && ' · dry-run' || '' }}"
 
 on:
   workflow_dispatch:
@@ -40,7 +40,7 @@ on:
 
 jobs:
   build:
-    name: ${{ inputs.march }} @ ${{ inputs.ref }}
+    name: "${{ inputs.march }} · ${{ inputs.hardware_patch && (inputs.optiscaler_patches && 'linuxuwu+optiscaler' || 'linuxuwu') || (inputs.optiscaler_patches && 'optiscaler' || 'stock') }} @ ${{ inputs.ref }}"
     runs-on: ubuntu-24.04
     timeout-minutes: 350
     concurrency:

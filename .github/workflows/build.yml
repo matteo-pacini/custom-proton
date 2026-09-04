@@ -3,7 +3,7 @@ name: Build Proton-CachyOS
 # The run title is fixed when the run starts, so it can only use inputs - the
 # exact build name comes from git describe at runtime. The resolved name is
 # written to the job summary instead.
-run-name: 'Build Proton-CachyOS: ${{ inputs.branch }} · ${{ inputs.march }}'
+run-name: "Build Proton-CachyOS: ${{ inputs.branch }} · ${{ inputs.march }} · ${{ inputs.patch_001 && 'linuxuwu' || 'stock' }}${{ inputs.dry_run && ' · dry-run' || '' }}"
 
 on:
   workflow_dispatch:
@@ -38,7 +38,7 @@ on:
 
 jobs:
   build:
-    name: ${{ inputs.march }} @ ${{ inputs.branch }}
+    name: "${{ inputs.march }} · ${{ inputs.patch_001 && 'linuxuwu' || 'stock' }} @ ${{ inputs.branch }}"
     runs-on: ubuntu-24.04
     timeout-minutes: 350
     # Serialise only identical builds. Different branch/march combinations are
