@@ -26,7 +26,7 @@ valve-experimental/                        Proton Experimental patch set
 |---|---|---|
 | `branch` | `cachyos-11.0-20260702-slr` | Branch **or tag** of `CachyOS/proton-cachyos` to build from. Prefer an `-slr` **tag** — see below |
 | `march` | `zen4` | CPU target. One of `zen4`, `zen3`, `zen2`, `x86-64-v4`, `x86-64-v3`, `nocona` |
-| `patch_001` | `true` | Apply patch 001. Untick it for a stock upstream build with optimisations only |
+| `patch_001` | `true` | Apply the CPUID, KUSER_SHARED_DATA, and faketime hardware patch. Untick it for a stock upstream build with optimisations only |
 | `dry_run` | `false` | Validate only — checkout, patch and configure, then stop. Takes ~5 min instead of hours. Use it to check that a new upstream branch still applies cleanly before committing to a full build |
 
 `march` selects `CFLAGS` only (`nocona` is upstream's stock setting):
