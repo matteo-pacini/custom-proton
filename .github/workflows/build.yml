@@ -30,11 +30,6 @@ on:
         required: false
         type: boolean
         default: true
-      patch_002:
-        description: 'Apply patch 002 (default-on runtime env vars; needs 001)'
-        required: false
-        type: boolean
-        default: true
       dry_run:
         description: 'Validate only (checkout + patch + configure, no build)'
         required: false
@@ -52,7 +47,7 @@ jobs:
     # available in workflow-level concurrency, and referencing it there makes
     # GitHub silently refuse to index the whole file.
     concurrency:
-      group: ${{ github.workflow }}-${{ inputs.branch }}-${{ inputs.march }}-${{ inputs.patch_001 }}-${{ inputs.patch_002 }}
+      group: ${{ github.workflow }}-${{ inputs.branch }}-${{ inputs.march }}-${{ inputs.patch_001 }}
       cancel-in-progress: false
 
     steps:
@@ -126,28 +121,14 @@ jobs:
         working-directory: proton-cachyos
         run: git submodule update --init --filter=tree:0 --recursive
 
-      # Patches are applied in sorted order; each is individually selectable.
-      # 002 is authored on top of 001, so applying 002 alone is refused rather
-      # than left to fail deep in the build.
-      - name: Apply overlay patches
+      - name: Apply overlay patch
         working-directory: proton-cachyos
         env:
           APPLY_001: ${{ inputs.patch_001 }}
-          APPLY_002: ${{ inputs.patch_002 }}
         run: |
-          if [ "$APPLY_002" = "true" ] && [ "$APPLY_001" != "true" ]; then
-            echo "::error::002-defaults.patch is authored on top of 001 and cannot be applied without it"
-            exit 1
-          fi
           applied=0
-          for p in ../overlay/001-*.patch; do
+          for p in ../overlay/proton-cachyos/001-*.patch; do
             [ "$APPLY_001" = "true" ] || break
-            echo "::group::applying $(basename "$p")"
-            git apply --verbose --whitespace=nowarn "$p" && applied=$((applied+1))
-            echo "::endgroup::"
-          done
-          for p in ../overlay/002-*.patch; do
-            [ "$APPLY_002" = "true" ] || break
             echo "::group::applying $(basename "$p")"
             git apply --verbose --whitespace=nowarn "$p" && applied=$((applied+1))
             echo "::endgroup::"

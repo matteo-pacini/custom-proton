@@ -1,0 +1,2 @@
+proton-cachyos/**/*.patch -whitespace
+valve-experimental/**/*.patch -whitespace

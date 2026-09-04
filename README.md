@@ -1,17 +1,20 @@
 # custom-proton
 
-A thin overlay on top of [CachyOS/proton-cachyos](https://github.com/CachyOS/proton-cachyos).
+A thin overlay for [CachyOS/proton-cachyos](https://github.com/CachyOS/proton-cachyos)
+and Valve's Proton Experimental.
 
-This repo holds **no Proton source** — only patches and a GitHub Actions workflow. The
+This repo holds **no Proton source** — only patches and GitHub Actions workflows. Each
 workflow clones upstream at a branch you choose, applies the patches on top, builds it
 with the CPU optimisation you pick, and hands you the result as a downloadable artifact.
 
 ```
-*.patch                       applied to the upstream checkout, in sorted order
-.github/workflows/build.yml   the build workflow
+proton-cachyos/                            CachyOS overlay patches
+valve-experimental/                        Proton Experimental patch set
+.github/workflows/build.yml                CachyOS build workflow
+.github/workflows/build-experimental.yml   Proton Experimental build workflow
 ```
 
-## Building
+## Building Proton-CachyOS
 
 1. Go to the **Actions** tab → **Build Proton-CachyOS** → **Run workflow**.
 2. Fill in the inputs (defaults are fine) and hit the green button.
@@ -23,8 +26,7 @@ with the CPU optimisation you pick, and hands you the result as a downloadable a
 |---|---|---|
 | `branch` | `cachyos-11.0-20260702-slr` | Branch **or tag** of `CachyOS/proton-cachyos` to build from. Prefer an `-slr` **tag** — see below |
 | `march` | `zen4` | CPU target. One of `zen4`, `zen3`, `zen2`, `x86-64-v4`, `x86-64-v3`, `nocona` |
-| `patch_001` | `true` | Apply patch 001. Untick **both** patches for a stock upstream build with optimisations only |
-| `patch_002` | `true` | Apply patch 002 (default-on runtime env vars). Authored on top of 001, so it requires it |
+| `patch_001` | `true` | Apply patch 001. Untick it for a stock upstream build with optimisations only |
 | `dry_run` | `false` | Validate only — checkout, patch and configure, then stop. Takes ~5 min instead of hours. Use it to check that a new upstream branch still applies cleanly before committing to a full build |
 
 `march` selects `CFLAGS` only (`nocona` is upstream's stock setting):
@@ -45,6 +47,24 @@ unrecognised `-Ctarget-cpu` is silently ignored and LLVM falls back to a subtarg
 cannot emit 64-bit code, so `gst-plugins-rs` fails with *"LLVM ERROR: 64-bit code
 requested on a subtarget that doesn't support it"* about 90 minutes into the build.
 The Rust components are a small part of the tree; the C/C++ bulk still gets your `march`.
+
+## Building Proton Experimental
+
+Use **Actions → Build Proton Experimental → Run workflow**. It checks out
+`ValveSoftware/Proton` directly, applies the hardware patch to Valve's Wine submodule,
+applies the extracted OptiScaler series to a pinned `umu-protonfixes` checkout, and
+packages the result as an artifact. The default `ref` tracks Valve's
+`experimental_11.0` branch and the default CPU target is `zen4`.
+
+The Experimental workflow has the same `march` choices as the CachyOS workflow. It
+prompts separately for the hardware patch and the OptiScaler patch set, both enabled by
+default. The OptiScaler option includes all eight dependent upscaler patches. Its
+`dry_run` input stops after checkout, patch validation, and configuration. Enable
+OptiScaler at runtime with:
+
+```sh
+PROTON_USE_OPTISCALER=1 %command%
+```
 
 ### How long it takes
 
@@ -169,6 +189,7 @@ computing `x86_64_CFLAGS` (lines 113–114 for GCC, 121–122 for Clang). Since 
 
 ## Patches
 
-Every `*.patch` at the repo root is applied, in sorted order, with `git apply` from the
-root of the upstream checkout. A patch that fails to apply stops the run immediately, so
-after an upstream bump use `dry_run` to check before starting a full build.
+The CachyOS workflow applies the selected patches from `proton-cachyos/` with `git apply`
+from the root of its upstream checkout. The Experimental workflow uses the separate
+`valve-experimental/` patch set. A patch that fails to apply stops the run immediately,
+so after an upstream bump use `dry_run` before starting a full build.
