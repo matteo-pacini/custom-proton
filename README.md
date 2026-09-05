@@ -24,6 +24,8 @@ linuxuwu.patch                CachyOS overlay patch
 | `branch` | `cachyos-11.0-20260702-slr` | Branch **or tag** of `CachyOS/proton-cachyos` to build from. Prefer an `-slr` **tag** — see below |
 | `march` | `zen4` | CPU target. One of `zen4`, `zen3`, `zen2`, `x86-64-v4`, `x86-64-v3`, `nocona` |
 | `linuxuwu_patch` | `true` | Apply the linuxuwu patch (CPUID, KUSER_SHARED_DATA and faketime hardware workarounds). Untick it for a stock upstream build with optimisations only |
+| `dxvk_latest` | `false` | Build DXVK from upstream `master` instead of the pinned submodule — see below |
+| `vkd3d_latest` | `false` | Build vkd3d-proton from upstream `master` instead of the pinned submodule — see below |
 | `dry_run` | `false` | Validate only — checkout, patch and configure, then stop. Takes ~5 min instead of hours. Use it to check that a new upstream branch still applies cleanly before committing to a full build |
 
 `march` selects `CFLAGS` only (`nocona` is upstream's stock setting):
@@ -44,6 +46,35 @@ unrecognised `-Ctarget-cpu` is silently ignored and LLVM falls back to a subtarg
 cannot emit 64-bit code, so `gst-plugins-rs` fails with *"LLVM ERROR: 64-bit code
 requested on a subtarget that doesn't support it"* about 90 minutes into the build.
 The Rust components are a small part of the tree; the C/C++ bulk still gets your `march`.
+
+### Bleeding-edge DXVK and vkd3d-proton
+
+`dxvk_latest` and `vkd3d_latest` fast-forward those two submodules to upstream `master`
+before configuring. Nothing else has to move with them — the build requirements are
+unchanged, and proton-cachyos already clears every floor the newer code imposes:
+
+- **Wine.** vkd3d-proton 3.x statically imports 14 D3DKMT functions from `gdi32`, so on
+  Proton 9 `d3d12core.dll` fails import resolution and you get no D3D12 device at all.
+  Wine gained those exports in 10.16/10.17; proton-cachyos 11.0 exports 49 of them.
+- **Toolchain.** Vendored meson 1.8.4 against a floor of 1.0, mingw 12.0.0 against 10.0.
+  The pinned 2022-vintage glslang still suffices because the shaders' `#extension` set is
+  unchanged between the pinned commit and master.
+- **Headers.** Both projects vendor their own Vulkan and SPIRV headers, and those pins
+  already match upstream master.
+
+`master` rather than the newest tag is deliberate: vkd3d-proton's latest tag is `v3.0.1`
+while the pinned commit sits 236 commits past it, so building the tag would be a
+*downgrade*.
+
+The one real risk is on the DXVK side. proton-cachyos carries a single out-of-tree DXVK
+patch (HDR detection via `NtUserDisplayConfigGetDeviceInfo`) that its Makefile applies
+during `make`, well after `configure` — so `dry_run` cannot catch a conflict. The workflow
+therefore dry-runs that patch against the bumped tree immediately after the fetch and
+fails in seconds with a clear message rather than an hour into the build. vkd3d-proton has
+no out-of-tree patches at all, which makes that knob essentially free.
+
+Builds pick up `-dxvk` and `-vkd3d` name markers so a bumped build can sit alongside a
+pinned one, and the job summary records the exact `git describe` of both.
 
 ### How long it takes
 

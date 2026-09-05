@@ -3,7 +3,7 @@ name: Build Proton-CachyOS
 # The run title is fixed when the run starts, so it can only use inputs - the
 # exact build name comes from git describe at runtime. The resolved name is
 # written to the job summary instead.
-run-name: "Build Proton-CachyOS: ${{ inputs.branch }} · ${{ inputs.march }} · ${{ inputs.linuxuwu_patch && 'linuxuwu' || 'stock' }}${{ inputs.dry_run && ' · dry-run' || '' }}"
+run-name: "Build Proton-CachyOS: ${{ inputs.branch }} · ${{ inputs.march }} · ${{ inputs.linuxuwu_patch && 'linuxuwu' || 'stock' }}${{ inputs.dxvk_latest && ' · dxvk-git' || '' }}${{ inputs.vkd3d_latest && ' · vkd3d-git' || '' }}${{ inputs.dry_run && ' · dry-run' || '' }}"
 
 on:
   workflow_dispatch:
@@ -30,6 +30,16 @@ on:
         required: false
         type: boolean
         default: true
+      dxvk_latest:
+        description: 'Build DXVK from upstream master instead of the pinned submodule'
+        required: false
+        type: boolean
+        default: false
+      vkd3d_latest:
+        description: 'Build vkd3d-proton from upstream master instead of the pinned submodule'
+        required: false
+        type: boolean
+        default: false
       dry_run:
         description: 'Validate only (checkout + patch + configure, no build)'
         required: false
@@ -38,7 +48,7 @@ on:
 
 jobs:
   build:
-    name: "${{ inputs.march }} · ${{ inputs.linuxuwu_patch && 'linuxuwu' || 'stock' }} @ ${{ inputs.branch }}"
+    name: "${{ inputs.march }} · ${{ inputs.linuxuwu_patch && 'linuxuwu' || 'stock' }}${{ inputs.dxvk_latest && ' · dxvk-git' || '' }}${{ inputs.vkd3d_latest && ' · vkd3d-git' || '' }} @ ${{ inputs.branch }}"
     runs-on: ubuntu-24.04
     timeout-minutes: 350
     # Serialise only identical builds. Different branch/march combinations are
@@ -47,7 +57,7 @@ jobs:
     # available in workflow-level concurrency, and referencing it there makes
     # GitHub silently refuse to index the whole file.
     concurrency:
-      group: ${{ github.workflow }}-${{ inputs.branch }}-${{ inputs.march }}-${{ inputs.linuxuwu_patch }}
+      group: ${{ github.workflow }}-${{ inputs.branch }}-${{ inputs.march }}-${{ inputs.linuxuwu_patch }}-${{ inputs.dxvk_latest }}-${{ inputs.vkd3d_latest }}
       cancel-in-progress: false
 
     steps:
@@ -121,6 +131,50 @@ jobs:
         working-directory: proton-cachyos
         run: git submodule update --init --filter=tree:0 --recursive
 
+      # Both submodules already point at upstream (doitsujin/dxvk,
+      # HansKristian-Work/vkd3d-proton), so this is a plain fast-forward, not a
+      # remote swap. master rather than the newest tag on purpose: vkd3d-proton's
+      # latest tag is v3.0.1 while the pin sits 236 commits past it, so checking
+      # out the tag would be a downgrade.
+      #
+      # --recursive is mandatory. dxvk pulls in dxbc-spirv and vkd3d-proton pulls
+      # in dxil-spirv, both of which move with the bump and both of which have
+      # submodules of their own; meson fails at configure on an empty subproject
+      # dir and cannot fetch a wrap from inside the build container.
+      - name: Bump graphics submodules to upstream master
+        if: ${{ inputs.dxvk_latest || inputs.vkd3d_latest }}
+        working-directory: proton-cachyos
+        env:
+          BUMP_DXVK: ${{ inputs.dxvk_latest }}
+          BUMP_VKD3D: ${{ inputs.vkd3d_latest }}
+        run: |
+          bump() {
+            echo "::group::bumping $1"
+            git -C "$1" fetch --filter=tree:0 --tags origin master
+            git -C "$1" checkout --detach FETCH_HEAD
+            git -C "$1" submodule sync --recursive
+            git -C "$1" submodule update --init --recursive --filter=tree:0
+            echo "$1 now at: $(git -C "$1" describe --tags --always)"
+            echo "::endgroup::"
+          }
+          if [ "$BUMP_DXVK" = "true" ]; then bump dxvk; fi
+          if [ "$BUMP_VKD3D" = "true" ]; then bump vkd3d-proton; fi
+          # proton-cachyos carries one out-of-tree DXVK patch (HDR detection) that
+          # its Makefile applies during `make`, long after configure - so a dry_run
+          # would not catch a conflict. Check it here instead, where it costs
+          # seconds rather than an hour. vkd3d-proton has no patches at all.
+          if [ "$BUMP_DXVK" = "true" ] && [ -d patches/dxvk ]; then
+            for p in patches/dxvk/*.patch; do
+              [ -e "$p" ] || continue
+              echo "checking $p against bumped dxvk"
+              patch -d dxvk -Np1 --dry-run -i "../$p" || {
+                echo "::error::$(basename "$p") no longer applies to dxvk master. Regenerate it or leave dxvk_latest off."
+                exit 1
+              }
+            done
+          fi
+          git --no-pager submodule status dxvk vkd3d-proton
+
       - name: Apply overlay patch
         working-directory: proton-cachyos
         env:
@@ -161,15 +215,20 @@ jobs:
           # --long would append a meaningless -0-g<sha> to every tag build, and Steam's
           # Gamemode UI truncates long display names.
           base=$(git describe --tags | sed 's/^cachyos-/zi0p4tch0-/')
-          # An unpatched build is stock upstream source, so it only earns the
-          # -<march> optimisation marker.
-          if [ "${PATCHES_APPLIED:-0}" -eq 0 ]; then
-            postfix="${{ inputs.march }}"
-          else
-            postfix="linuxuwu-${{ inputs.march }}"
+          # An unpatched, unbumped build is stock upstream source, so it only earns
+          # the -<march> optimisation marker.
+          features=""
+          if [ "${PATCHES_APPLIED:-0}" -ne 0 ]; then
+            features="${features}-linuxuwu"
+          fi
+          if [ "${{ inputs.dxvk_latest }}" = "true" ]; then
+            features="${features}-dxvk"
+          fi
+          if [ "${{ inputs.vkd3d_latest }}" = "true" ]; then
+            features="${features}-vkd3d"
           fi
           stock="proton-${base}"
-          suffix="-${postfix}"
+          suffix="${features}-${{ inputs.march }}"
           mkdir -p ./build
           {
             echo "cflags=$cf"
@@ -185,7 +244,9 @@ jobs:
             echo "| ref | \`${{ inputs.branch }}\` |"
             echo "| march | \`${{ inputs.march }}\` |"
             echo "| cflags | \`$cf\` |"
-            echo "| patches applied | ${PATCHES_APPLIED:-0} |"
+            echo "| linuxuwu patch | ${{ inputs.linuxuwu_patch }} |"
+            echo "| dxvk | \`$(git -C dxvk describe --tags --always)\` |"
+            echo "| vkd3d-proton | \`$(git -C vkd3d-proton describe --tags --always)\` |"
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Configure
@@ -206,7 +267,12 @@ jobs:
         working-directory: proton-cachyos/build
         run: |
           image=$(make get-steamrt-image | tail -1)
-          checksum=$(echo "$image ${{ steps.cfg.outputs.cflags }}" | sha1sum | cut -d' ' -f1)
+          # Keyed on the resolved submodule SHAs, not the input booleans: a bumped
+          # build tracks a moving master, so yesterday's cache is for different
+          # source. ccache is content-addressed anyway, this just stops pinned and
+          # bumped builds evicting each other out of the 10 GB budget.
+          gfx=$(git -C .. submodule status dxvk vkd3d-proton | awk '{print $1}' | tr -d '+-' | tr '\n' ' ')
+          checksum=$(echo "$image ${{ steps.cfg.outputs.cflags }} $gfx" | sha1sum | cut -d' ' -f1)
           echo "checksum=$checksum" >> "$GITHUB_OUTPUT"
 
       - name: Restore ccache
