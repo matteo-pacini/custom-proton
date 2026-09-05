@@ -73,8 +73,8 @@ therefore dry-runs that patch against the bumped tree immediately after the fetc
 fails in seconds with a clear message rather than an hour into the build. vkd3d-proton has
 no out-of-tree patches at all, which makes that knob essentially free.
 
-Builds pick up `-dxvk` and `-vkd3d` name markers so a bumped build can sit alongside a
-pinned one, and the job summary records the exact `git describe` of both.
+Builds pick up `-dxvk-git` and `-vkd3d-git` name markers so a bumped build can sit
+alongside a pinned one, and the job summary records the exact `git describe` of both.
 
 ### How long it takes
 

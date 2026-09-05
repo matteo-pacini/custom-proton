@@ -222,10 +222,10 @@ jobs:
             features="${features}-linuxuwu"
           fi
           if [ "${{ inputs.dxvk_latest }}" = "true" ]; then
-            features="${features}-dxvk"
+            features="${features}-dxvk-git"
           fi
           if [ "${{ inputs.vkd3d_latest }}" = "true" ]; then
-            features="${features}-vkd3d"
+            features="${features}-vkd3d-git"
           fi
           stock="proton-${base}"
           suffix="${features}-${{ inputs.march }}"
