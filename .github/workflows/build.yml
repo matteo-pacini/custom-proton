@@ -3,7 +3,7 @@ name: Build Proton-CachyOS
 # The run title is fixed when the run starts, so it can only use inputs - the
 # exact build name comes from git describe at runtime. The resolved name is
 # written to the job summary instead.
-run-name: "Build Proton-CachyOS: ${{ inputs.branch }} · ${{ inputs.march }} · ${{ inputs.patch_001 && 'linuxuwu' || 'stock' }}${{ inputs.dry_run && ' · dry-run' || '' }}"
+run-name: "Build Proton-CachyOS: ${{ inputs.branch }} · ${{ inputs.march }} · ${{ inputs.linuxuwu_patch && 'linuxuwu' || 'stock' }}${{ inputs.dry_run && ' · dry-run' || '' }}"
 
 on:
   workflow_dispatch:
@@ -25,7 +25,7 @@ on:
           - x86-64-v4
           - x86-64-v3
           - nocona
-      patch_001:
+      linuxuwu_patch:
         description: 'Apply the CPUID, KUSER_SHARED_DATA, and faketime hardware patch'
         required: false
         type: boolean
@@ -38,7 +38,7 @@ on:
 
 jobs:
   build:
-    name: "${{ inputs.march }} · ${{ inputs.patch_001 && 'linuxuwu' || 'stock' }} @ ${{ inputs.branch }}"
+    name: "${{ inputs.march }} · ${{ inputs.linuxuwu_patch && 'linuxuwu' || 'stock' }} @ ${{ inputs.branch }}"
     runs-on: ubuntu-24.04
     timeout-minutes: 350
     # Serialise only identical builds. Different branch/march combinations are
@@ -47,7 +47,7 @@ jobs:
     # available in workflow-level concurrency, and referencing it there makes
     # GitHub silently refuse to index the whole file.
     concurrency:
-      group: ${{ github.workflow }}-${{ inputs.branch }}-${{ inputs.march }}-${{ inputs.patch_001 }}
+      group: ${{ github.workflow }}-${{ inputs.branch }}-${{ inputs.march }}-${{ inputs.linuxuwu_patch }}
       cancel-in-progress: false
 
     steps:
@@ -124,16 +124,14 @@ jobs:
       - name: Apply overlay patch
         working-directory: proton-cachyos
         env:
-          APPLY_001: ${{ inputs.patch_001 }}
+          APPLY_LINUXUWU: ${{ inputs.linuxuwu_patch }}
         run: |
           applied=0
-          for p in ../overlay/proton-cachyos/001-*.patch; do
-            [ "$APPLY_001" = "true" ] || break
-            echo "::group::applying $(basename "$p")"
-            git apply --verbose --whitespace=nowarn "$p" && applied=$((applied+1))
-            echo "::endgroup::"
-          done
-          echo "patches applied: $applied"
+          if [ "$APPLY_LINUXUWU" = "true" ]; then
+            git apply --verbose --whitespace=nowarn ../overlay/linuxuwu.patch
+            applied=1
+          fi
+          echo "linuxuwu patch applied: $applied"
           echo "PATCHES_APPLIED=$applied" >> "$GITHUB_ENV"
           git --no-pager diff --stat
 
