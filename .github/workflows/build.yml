@@ -3,7 +3,7 @@ name: Build Proton-CachyOS
 # The run title is fixed when the run starts, so it can only use inputs - the
 # exact build name comes from git describe at runtime. The resolved name is
 # written to the job summary instead.
-run-name: "Build Proton-CachyOS: ${{ inputs.branch }} · ${{ inputs.march }} · ${{ inputs.linuxuwu_patch && 'linuxuwu' || 'stock' }}${{ inputs.dxvk_latest && ' · dxvk-git' || '' }}${{ inputs.vkd3d_latest && ' · vkd3d-git' || '' }}${{ inputs.dry_run && ' · dry-run' || '' }}"
+run-name: "Build Proton-CachyOS: ${{ inputs.branch }} · ${{ inputs.march }}${{ inputs.dxvk_latest && ' · dxvk-git' || '' }}${{ inputs.vkd3d_latest && ' · vkd3d-git' || '' }}${{ inputs.dry_run && ' · dry-run' || '' }}"
 
 on:
   workflow_dispatch:
@@ -25,11 +25,6 @@ on:
           - x86-64-v4
           - x86-64-v3
           - nocona
-      linuxuwu_patch:
-        description: 'Apply the CPUID, KUSER_SHARED_DATA, and faketime hardware patch'
-        required: false
-        type: boolean
-        default: true
       dxvk_latest:
         description: 'Build DXVK from upstream master instead of the pinned submodule'
         required: false
@@ -41,14 +36,14 @@ on:
         type: boolean
         default: false
       dry_run:
-        description: 'Validate only (checkout + patch + configure, no build)'
+        description: 'Validate only (checkout + configure, no build)'
         required: false
         type: boolean
         default: false
 
 jobs:
   build:
-    name: "${{ inputs.march }} · ${{ inputs.linuxuwu_patch && 'linuxuwu' || 'stock' }}${{ inputs.dxvk_latest && ' · dxvk-git' || '' }}${{ inputs.vkd3d_latest && ' · vkd3d-git' || '' }} @ ${{ inputs.branch }}"
+    name: "${{ inputs.march }}${{ inputs.dxvk_latest && ' · dxvk-git' || '' }}${{ inputs.vkd3d_latest && ' · vkd3d-git' || '' }} @ ${{ inputs.branch }}"
     runs-on: ubuntu-24.04
     timeout-minutes: 350
     # Serialise only identical builds. Different branch/march combinations are
@@ -57,7 +52,7 @@ jobs:
     # available in workflow-level concurrency, and referencing it there makes
     # GitHub silently refuse to index the whole file.
     concurrency:
-      group: ${{ github.workflow }}-${{ inputs.branch }}-${{ inputs.march }}-${{ inputs.linuxuwu_patch }}-${{ inputs.dxvk_latest }}-${{ inputs.vkd3d_latest }}
+      group: ${{ github.workflow }}-${{ inputs.branch }}-${{ inputs.march }}-${{ inputs.dxvk_latest }}-${{ inputs.vkd3d_latest }}
       cancel-in-progress: false
 
     steps:
@@ -97,11 +92,6 @@ jobs:
 
       - name: Prepare host
         run: sudo apt-get update && sudo apt-get install -y ccache fontforge-nox
-
-      - name: Checkout overlay
-        uses: actions/checkout@v6
-        with:
-          path: overlay
 
       - name: Checkout proton-cachyos
         uses: actions/checkout@v6
@@ -175,20 +165,6 @@ jobs:
           fi
           git --no-pager submodule status dxvk vkd3d-proton
 
-      - name: Apply overlay patch
-        working-directory: proton-cachyos
-        env:
-          APPLY_LINUXUWU: ${{ inputs.linuxuwu_patch }}
-        run: |
-          applied=0
-          if [ "$APPLY_LINUXUWU" = "true" ]; then
-            git apply --verbose --whitespace=nowarn ../overlay/linuxuwu.patch
-            applied=1
-          fi
-          echo "linuxuwu patch applied: $applied"
-          echo "PATCHES_APPLIED=$applied" >> "$GITHUB_ENV"
-          git --no-pager diff --stat
-
       - name: Resolve build name and optimisation flags
         id: cfg
         working-directory: proton-cachyos
@@ -215,12 +191,7 @@ jobs:
           # --long would append a meaningless -0-g<sha> to every tag build, and Steam's
           # Gamemode UI truncates long display names.
           base=$(git describe --tags | sed 's/^cachyos-/zi0p4tch0-/')
-          # An unpatched, unbumped build is stock upstream source, so it only earns
-          # the -<march> optimisation marker.
           features=""
-          if [ "${PATCHES_APPLIED:-0}" -ne 0 ]; then
-            features="${features}-linuxuwu"
-          fi
           if [ "${{ inputs.dxvk_latest }}" = "true" ]; then
             features="${features}-dxvk-git"
           fi
@@ -244,7 +215,6 @@ jobs:
             echo "| ref | \`${{ inputs.branch }}\` |"
             echo "| march | \`${{ inputs.march }}\` |"
             echo "| cflags | \`$cf\` |"
-            echo "| linuxuwu patch | ${{ inputs.linuxuwu_patch }} |"
             echo "| dxvk | \`$(git -C dxvk describe --tags --always)\` |"
             echo "| vkd3d-proton | \`$(git -C vkd3d-proton describe --tags --always)\` |"
           } >> "$GITHUB_STEP_SUMMARY"

@@ -2,12 +2,11 @@
 
 A thin overlay for [CachyOS/proton-cachyos](https://github.com/CachyOS/proton-cachyos).
 
-This repo holds **no Proton source** — only a patch and a GitHub Actions workflow. The
-workflow clones upstream at a branch you choose, applies the patch on top, builds it
-with the CPU optimisation you pick, and hands you the result as a downloadable artifact.
+This repo holds **no Proton source** — only a GitHub Actions workflow. The workflow
+clones upstream at a branch you choose, builds it with the CPU optimisation you pick,
+and hands you the result as a downloadable artifact.
 
 ```
-linuxuwu.patch                CachyOS overlay patch
 .github/workflows/build.yml   build workflow
 ```
 
@@ -23,10 +22,9 @@ linuxuwu.patch                CachyOS overlay patch
 |---|---|---|
 | `branch` | `cachyos-11.0-20260702-slr` | Branch **or tag** of `CachyOS/proton-cachyos` to build from. Prefer an `-slr` **tag** — see below |
 | `march` | `zen4` | CPU target. One of `zen4`, `zen3`, `zen2`, `x86-64-v4`, `x86-64-v3`, `nocona` |
-| `linuxuwu_patch` | `true` | Apply the linuxuwu patch (CPUID, KUSER_SHARED_DATA and faketime hardware workarounds). Untick it for a stock upstream build with optimisations only |
 | `dxvk_latest` | `false` | Build DXVK from upstream `master` instead of the pinned submodule — see below |
 | `vkd3d_latest` | `false` | Build vkd3d-proton from upstream `master` instead of the pinned submodule — see below |
-| `dry_run` | `false` | Validate only — checkout, patch and configure, then stop. Takes ~5 min instead of hours. Use it to check that a new upstream branch still applies cleanly before committing to a full build |
+| `dry_run` | `false` | Validate only — checkout and configure, then stop. Takes ~5 min instead of hours. Use it to check that a new upstream branch still configures cleanly before committing to a full build |
 
 `march` selects `CFLAGS` only (`nocona` is upstream's stock setting):
 
@@ -150,8 +148,9 @@ Building an exact tag yields the bare tag name; a ref that sits past a tag keeps
 `-N-g<sha>` offset so the build stays identifiable. Names are kept short deliberately —
 Steam's Gamemode UI truncates long compatibility-tool names in the dropdown.
 
-An unpatched build and a patched build of the same ref get different postfixes, so both can
-sit in `compatibilitytools.d` at once and be compared from Steam's dropdown.
+A pinned build and a `dxvk_latest`/`vkd3d_latest` build of the same ref get different
+postfixes, so both can sit in `compatibilitytools.d` at once and be compared from Steam's
+dropdown.
 
 That exact string is what Steam shows in its compatibility-tool dropdown. It reaches
 there via a single knob — `configure.sh --build-name=` → the `BUILD_NAME` make variable →
@@ -196,9 +195,3 @@ computing `x86_64_CFLAGS` (lines 113–114 for GCC, 121–122 for Clang). Since 
 `-march=znver4` still gives you znver4 scheduling plus BMI1/BMI2/LZCNT/MOVBE/ADX, but
 **not** AVX2/AVX-512 codegen. This is intentional and matches what upstream's own
 `x86-64-v3` build does. The workflow does not fight it.
-
-## The patch
-
-`linuxuwu.patch` is applied with `git apply` from the root of the upstream checkout when
-`linuxuwu_patch` is ticked. It stops the run immediately if it fails to apply, so after an
-upstream bump use `dry_run` before starting a full build.
