@@ -36,7 +36,7 @@ on:
         type: boolean
         default: false
       dry_run:
-        description: 'Validate only (checkout + configure, no build)'
+        description: 'Validate only (checkout + patch + configure, no build)'
         required: false
         type: boolean
         default: false
@@ -93,6 +93,11 @@ jobs:
       - name: Prepare host
         run: sudo apt-get update && sudo apt-get install -y ccache fontforge-nox
 
+      - name: Checkout overlay
+        uses: actions/checkout@v6
+        with:
+          path: overlay
+
       - name: Checkout proton-cachyos
         uses: actions/checkout@v6
         with:
@@ -120,6 +125,32 @@ jobs:
       - name: Fetch submodules
         working-directory: proton-cachyos
         run: git submodule update --init --filter=tree:0 --recursive
+
+      # Makefile.in applies patches/wine/*.patch with `patch -N` during `make`,
+      # long after configure, so a conflict would only surface an hour in and a
+      # dry_run would never see it. Check here instead. -N also fails on an
+      # already-applied patch, so skip the crypt32 backport once the pinned wine
+      # carries it (upstream since wine-11.6).
+      - name: Stage overlay wine patches
+        working-directory: proton-cachyos
+        run: |
+          mkdir -p patches/wine
+          for p in ../overlay/wine/*.patch; do
+            name=$(basename "$p")
+            case "$name" in
+              *crypt32-accept-88-byte*)
+                if grep -q dwExclusiveFlags wine/include/wincrypt.h; then
+                  echo "skipping $name: wine already defines dwExclusiveFlags"
+                  continue
+                fi ;;
+            esac
+            patch -d wine -Np1 --dry-run -i "../$p" || {
+              echo "::error::$name does not apply to this wine tree"
+              exit 1
+            }
+            cp "$p" "patches/wine/$name"
+            echo "staged $name"
+          done
 
       # Both submodules already point at upstream (doitsujin/dxvk,
       # HansKristian-Work/vkd3d-proton), so this is a plain fast-forward, not a

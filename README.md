@@ -2,11 +2,12 @@
 
 A thin overlay for [CachyOS/proton-cachyos](https://github.com/CachyOS/proton-cachyos).
 
-This repo holds **no Proton source** — only a GitHub Actions workflow. The workflow
-clones upstream at a branch you choose, builds it with the CPU optimisation you pick,
-and hands you the result as a downloadable artifact.
+This repo holds **no Proton source** — a GitHub Actions workflow and a Wine backport. The
+workflow clones upstream at a branch you choose, applies the backport, builds it with
+the CPU optimisation you pick, and hands you the result as a downloadable artifact.
 
 ```
+wine/*.patch                  Wine patches, staged into the upstream patches/wine/
 .github/workflows/build.yml   build workflow
 ```
 
@@ -24,7 +25,7 @@ and hands you the result as a downloadable artifact.
 | `march` | `zen4` | CPU target. One of `zen4`, `zen3`, `zen2`, `x86-64-v4`, `x86-64-v3`, `nocona` |
 | `dxvk_latest` | `false` | Build DXVK from upstream `master` instead of the pinned submodule — see below |
 | `vkd3d_latest` | `false` | Build vkd3d-proton from upstream `master` instead of the pinned submodule — see below |
-| `dry_run` | `false` | Validate only — checkout and configure, then stop. Takes ~5 min instead of hours. Use it to check that a new upstream branch still configures cleanly before committing to a full build |
+| `dry_run` | `false` | Validate only — checkout, patch and configure, then stop. Takes ~5 min instead of hours. Use it to check that a new upstream branch still patches and configures cleanly before committing to a full build |
 
 `march` selects `CFLAGS` only (`nocona` is upstream's stock setting):
 
@@ -73,6 +74,35 @@ no out-of-tree patches at all, which makes that knob essentially free.
 
 Builds pick up `-dxvk-git` and `-vkd3d-git` name markers so a bumped build can sit
 alongside a pinned one, and the job summary records the exact `git describe` of both.
+
+### Warcraft III: Reforged 3.0
+
+WC3 3.0's Battle.net client creates its certificate chain engine with the 88-byte
+`CERT_CHAIN_ENGINE_CONFIG` from current Windows SDKs. Wine 11.0 only accepts the 64- and
+80-byte layouts, so `CertCreateCertificateChainEngine` returns `E_INVALIDARG`, login
+fails, and the game reports a misleading "Please check your VPN" error
+([CachyOS/proton-cachyos#292](https://github.com/CachyOS/proton-cachyos/issues/292)).
+
+`wine/0001-crypt32-accept-88-byte-cert-chain-engine-config.patch` fixes it. It squashes
+four upstream Wine commits from wine-11.5/11.6 (`2012949a`, `02bb0a34`, `eef8e97d`,
+`c7cc9be8`) with one follow-up line from nanomatters/wine-cachyos `c5bd7ac3`. The four
+must travel together: the header change alone broke the Diablo IV shop (Wine bug 59600)
+until `c7cc9be8` restored the 80-byte layout. The follow-up keeps `hExclusiveRoot`
+honoured for 80-byte callers, which upstream silently drops. That makes it stricter than
+upstream, never looser.
+
+It is applied to every build rather than behind an option. 64- and 80-byte callers behave
+exactly as before; only 88-byte callers change, from failing to working as on Windows. The
+workflow dry-runs it against the checked-out Wine first, and skips it once the pinned Wine
+already defines `dwExclusiveFlags`. `patch -N` would otherwise treat the already-applied
+patch as an error and abort the build.
+
+The black main menu some reports mention needs no patch here. BlizzardBrowser composites
+it through D3D11 shared textures and keyed mutexes, which DXVK has supported since 3.0 via
+the D3DKMT API. `cachyos-11.0-20260702-slr` pins DXVK v3.0.1-6 and `-20260703-slr` pins
+v3.0.2-2, both with that series, and their Wine has the matching D3DKMT exports. If the
+menu is still black, check the DXVK log header in each process: a 2.x version there means
+a stale DXVK was left in the prefix by winetricks or old DLL overrides.
 
 ### How long it takes
 
