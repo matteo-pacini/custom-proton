@@ -149,19 +149,24 @@ jobs:
           }
           if [ "$BUMP_DXVK" = "true" ]; then bump dxvk; fi
           if [ "$BUMP_VKD3D" = "true" ]; then bump vkd3d-proton; fi
-          # proton-cachyos carries one out-of-tree DXVK patch (HDR detection) that
+          # proton-cachyos carries out-of-tree DXVK patches (HDR detection etc.) that
           # its Makefile applies during `make`, long after configure - so a dry_run
-          # would not catch a conflict. Check it here instead, where it costs
+          # would not catch a conflict. Check them here instead, where it costs
           # seconds rather than an hour. vkd3d-proton has no patches at all.
+          # The patches stack (later ones edit lines earlier ones add), so they are
+          # applied in order to a scratch copy rather than dry-run one by one.
           if [ "$BUMP_DXVK" = "true" ] && [ -d patches/dxvk ]; then
+            scratch=$(mktemp -d)
+            cp -a dxvk/. "$scratch"
             for p in patches/dxvk/*.patch; do
               [ -e "$p" ] || continue
               echo "checking $p against bumped dxvk"
-              patch -d dxvk -Np1 --dry-run -i "../$p" || {
+              patch -d "$scratch" -Np1 -i "$PWD/$p" || {
                 echo "::error::$(basename "$p") no longer applies to dxvk master. Regenerate it or leave dxvk_latest off."
                 exit 1
               }
             done
+            rm -rf "$scratch"
           fi
           git --no-pager submodule status dxvk vkd3d-proton
 
